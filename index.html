@@ -46,6 +46,15 @@
   .tag[data-tag="Pressing"]{background:var(--violet)}
   .tag[data-tag="Question for coach"]{background:var(--grey)}
   .tags.disabled .tag{opacity:.35;pointer-events:none}
+  .acard{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:14px;line-height:1.35}
+  .acard.on{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset}
+  .acard .top{display:flex;gap:10px;align-items:center;margin-bottom:4px}
+  .acard .tm{font-weight:700;font-variant-numeric:tabular-nums;color:var(--mint)}
+  .acard .tg{font-weight:700;padding:2px 8px;border-radius:999px;font-size:12px;color:#fff}
+  .acard .k{color:var(--muted);font-size:12px}
+  .acard .play{margin-left:auto;color:var(--muted);font-size:12px}
+  .asum{font-size:13px;color:var(--muted);margin:0 0 10px}
+  .gkhead{grid-column:1/-1;font-size:13px;font-weight:700;color:var(--muted);margin:4px 0 0}
   .hint{font-size:13px;color:var(--muted);margin:10px 0 0}
   h3{font-size:14px;margin:18px 0 8px;color:var(--muted);font-weight:600;letter-spacing:.02em}
   .list .row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--card);
@@ -136,6 +145,11 @@
       <label class="l" for="matchSel">Match · <span class="ar">المباراة</span></label>
       <select id="matchSel"></select>
     </div>
+    <div id="adminRow" style="display:none;margin-top:10px">
+      <label class="l" for="adminSel">Admin · view a player · <span class="ar">عرض لاعب</span></label>
+      <select id="adminSel"><option value="">— my own tagging —</option></select>
+      <select id="adminFilter" style="display:none;margin-top:8px"><option value="">All tags</option></select>
+    </div>
   </div>
 
   <div class="layout">
@@ -158,9 +172,11 @@
         <button class="tag" data-tag="Pressing">Pressing<span class="ar">ضغط</span></button>
         <button class="tag" data-tag="Question for coach">Question for coach<span class="ar">سؤال للمدرب</span></button>
       </div>
+      <div class="tags disabled" id="gkTags" style="display:none"></div>
       <p class="hint" id="hint">Choose your name and enter your 4-digit PIN. Then play the video and tap a button at the moment you see yourself. · <span class="ar">اختر اسمك وأدخل الرقم السري (4 أرقام)، ثم شغّل الفيديو واضغط على الزر في اللحظة التي ترى فيها نفسك.</span></p>
 
-      <h3>My tags · <span class="ar">لحظاتي</span></h3>
+      <div id="adminList" style="display:none"></div>
+      <h3 id="myHead">My tags · <span class="ar">لحظاتي</span></h3>
       <div class="list" id="list"><div class="empty">No tags yet · <span class="ar">لا توجد لحظات بعد</span></div></div>
     </div>
   </div>
@@ -208,6 +224,7 @@
         <button type="button" class="chip" data-v="Should have delayed">Should have delayed<span class="ar">كان يجب أن أتأخر (أؤخر الضغط)</span></button>
       </div>
     </div>
+    <div id="gkBox" style="display:none"></div>
     <div id="analysisFields">
       <div class="field">
         <label class="l" for="saw">What did I see? · <span class="ar">ماذا رأيت؟</span></label>
@@ -306,6 +323,7 @@
     mine = load(key(), []).map(function(t){ t.status='failed'; return t; }); render();
     $('list').innerHTML='<div class="empty">Loading… · جارٍ التحميل</div>';
     var want = m.name;
+    if(isAdmin(auth.player)) loadAdminPlayers();
     call('getMyTags', {player:auth.player, token:auth.token, match:want}, function(r){
       if(!match || match.name!==want) return;
       if(r && r.ok){ mine = r.tags.map(function(t){ t.status='saved'; return t; })
@@ -343,7 +361,8 @@
   function onPlayer(){
     var p=$('player').value;
     auth=null; mine=[]; render();
-    $('tags').classList.add('disabled'); $('hint').style.display='';
+    $('tags').classList.add('disabled'); $('gkTags').classList.add('disabled'); $('hint').style.display='';
+    $('tags').style.display=''; $('gkTags').style.display='none';
     $('pinMsg').textContent=''; $('pinMsg').className='pinmsg';
     if(!p){ $('pinBox').style.display='none'; return; }
     $('pinBox').style.display='none'; $('pinMsg').textContent='';
@@ -381,34 +400,117 @@
     local.forEach(function(t){ t.status='failed'; mine.push(t); });
     $('pinBox').style.display='none'; $('nameBox').style.display='none';
     $('whoName').textContent=p; $('whoBox').style.display='';
-    $('tags').classList.remove('disabled'); $('hint').style.display='none';
+    var gk = isGK(p), coach = /^Coach /.test(p);
+    $('tags').style.display = gk ? 'none' : '';
+    $('gkTags').style.display = (gk || coach) ? '' : 'none';
+    $('gkHead').style.display = coach ? '' : 'none';
+    $('tags').classList.remove('disabled'); $('gkTags').classList.remove('disabled'); $('hint').style.display='none';
     render();
+    if(isAdmin(p)){ $('adminRow').style.display=''; loadAdminPlayers(); }
   }
   $('logout').onclick=function(){
+    $('adminSel').value=''; showAdmin(false); $('adminRow').style.display='none';
     store('gfc_auth', null); auth=null; mine=[]; render();
     $('whoBox').style.display='none'; $('nameBox').style.display='';
     $('player').value=''; onPlayer();
   };
 
   /* ---- tagging ---- */
-  Array.prototype.forEach.call(document.querySelectorAll('.tag'), function(b){
-    b.addEventListener('click', function(){
+  function openTag(tag, gkDef){
       if(!auth){ toast('Choose your name and enter your PIN first · اختر اسمك وأدخل رقمك السري'); return; }
       if(player && ready){ try{ player.pauseVideo(); }catch(e){} }
-      var tag=b.getAttribute('data-tag');
-      pending = { tag:tag, seconds:Math.floor(now()) };
+      pending = { tag:tag, seconds:Math.floor(now()), gk:gkDef||null };
       $('sTime').textContent = fmt(pending.seconds);
-      $('sTag').textContent = tag;
+      $('sTag').textContent = gkDef ? gkDef.label : tag;
       var qOnly = (tag==='Question for coach');
       $('analysisFields').style.display = qOnly ? 'none' : '';
-      $('mistakeBox').style.display = (tag==='Mistake') ? '' : 'none'; resetMistake();
-      $('pressBox').style.display = (tag==='Pressing') ? '' : 'none';
+      $('mistakeBox').style.display = (!gkDef && tag==='Mistake') ? '' : 'none'; resetMistake();
+      $('pressBox').style.display = (!gkDef && tag==='Pressing') ? '' : 'none';
       Array.prototype.forEach.call(document.querySelectorAll('#pChips .chip'), function(c){ c.classList.remove('on'); });
+      renderGkBox(gkDef);
       ['saw','decided','better','question'].forEach(function(id){ $(id).value=''; });
       $('sheet').classList.add('open');
       setTimeout(function(){ (qOnly ? $('question') : $('saw')).focus(); }, 50);
-    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#tags .tag'), function(b){
+    b.addEventListener('click', function(){ openTag(b.getAttribute('data-tag'), null); });
   });
+
+  /* ---- goalkeepers: their own tag set ---- */
+  var GK_TAGS = [
+    {tag:'Save', label:'Save', ar:'تصدٍّ', color:'#34c79a', dark:true, groups:[
+      {name:'Save type', q:'How did I save it?', qa:'كيف تصديت للكرة؟', multi:true, req:true, opts:[['Catch','إمساك الكرة'],['Parry / deflect','إبعاد الكرة'],['Dive','ارتماء'],['Feet save','تصدٍّ بالقدم']]} ]},
+    {tag:'Goal conceded', label:'Goal conceded', ar:'هدف في مرماي', color:'#e5484d', groups:[
+      {name:'Could I have saved it', q:'Could I have saved it?', qa:'هل كان بإمكاني التصدي له؟', multi:false, req:true, opts:[['Yes','نعم'],['No','لا']]},
+      {name:'Why', q:'Why? (optional)', qa:'لماذا؟ (اختياري)', multi:true, req:false, opts:[['Positioning','التمركز'],['Set position','وضعية الاستعداد'],['Reaction','رد الفعل']]} ]},
+    {tag:'High ball / cross', label:'High ball / cross', ar:'كرة عالية / عرضية', color:'#4a90e2', groups:[
+      {name:'What I did', q:'What did I do?', qa:'ماذا فعلت؟', multi:false, req:true, opts:[['Claimed','أمسكت الكرة'],['Punched','أبعدتها بقبضتي'],['Stayed on line','بقيت على خط المرمى'],['Missed it','لم ألحق بها']]} ]},
+    {tag:'1v1 / sweeping', label:'1v1 / sweeping', ar:'مواجهة فردية / خروج', color:'#8e6cf0', groups:[
+      {name:'What I did', q:'What did I do? (one or more)', qa:'ماذا فعلت؟ (واحد أو أكثر)', multi:true, req:true, opts:[['Came out','خرجت'],['Stayed','بقيت'],['Blocked','صددت'],['Too late','متأخر'],['Too early','مبكر']]} ]},
+    {tag:'Distribution', label:'Distribution', ar:'التوزيع', color:'#2bb3c0', dark:true, groups:[
+      {name:'Type', q:'Type', qa:'النوع', multi:false, req:true, opts:[['Short pass','تمريرة قصيرة'],['Throw','رمية باليد'],['Long kick','ركلة طويلة'],['Goal kick','ركلة مرمى']]},
+      {name:'Reached a teammate', q:'Did it reach a teammate?', qa:'هل وصلت لزميل؟', multi:false, req:true, opts:[['Yes','نعم'],['No','لا']]} ]},
+    {tag:'GK positioning', label:'Positioning', ar:'التمركز', color:'#5b6cf0', groups:[
+      {name:'Positioning', q:'How was my position?', qa:'كيف كان تمركزي؟', multi:false, req:true, opts:[['Good','جيد'],['Too deep','متأخر جداً'],['Too far off line','بعيد عن الخط جداً'],['Wrong angle','زاوية خاطئة']]} ]},
+    {tag:'Communication', label:'Communication', ar:'التواصل', color:'#71717a', groups:[
+      {name:'Communication', q:'What did I do? (one or more)', qa:'ماذا فعلت؟ (واحد أو أكثر)', multi:true, req:true, opts:[['Organised the defence','نظّمت الدفاع'],['Called for the ball','طلبت الكرة'],["Didn't talk",'لم أتكلم']]} ]},
+    {tag:'GK mistake', label:'Mistake', ar:'خطأ', color:'#e8a23b', dark:true, other:true, groups:[
+      {name:'Mistake', q:'What was the mistake? (one or more)', qa:'ما هو الخطأ؟ (واحد أو أكثر)', multi:true, req:true, opts:[['Handling','مسك الكرة'],['Positioning','التمركز'],['Decision','القرار'],['Distribution','التوزيع'],['Other','أخرى']]} ]},
+    {tag:'Question for coach', label:'Question for coach', ar:'سؤال للمدرب', color:'#52525b', groups:[]}
+  ];
+  function tagLabel(tag){ if(tag==='GK mistake') return 'Mistake (GK)'; if(tag==='GK positioning') return 'Positioning'; return tag; }
+  function isGK(p){ return (cfg.gks||[]).indexOf(p) >= 0; }
+  function esc(x){ return String(x).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  (function buildGkTags(){
+    var box = $('gkTags');
+    box.innerHTML = '<div class="gkhead" id="gkHead" style="display:none">Goalkeeper tags · <span class="ar">لحراس المرمى</span></div>';
+    GK_TAGS.forEach(function(d){
+      var b = document.createElement('button'); b.className = 'tag'; b.setAttribute('data-gk', d.tag);
+      b.style.background = d.color; if(d.dark) b.style.color = '#06281d';
+      b.innerHTML = esc(d.label) + '<span class="ar" style="color:inherit;opacity:.85">' + esc(d.ar) + '</span>';
+      b.addEventListener('click', function(){ openTag(d.tag, d); });
+      box.appendChild(b);
+    });
+  })();
+  function renderGkBox(d){
+    var box = $('gkBox'); box.innerHTML = '';
+    if(!d || !d.groups.length){ box.style.display = 'none'; return; }
+    box.style.display = '';
+    d.groups.forEach(function(g, gi){
+      var f = document.createElement('div'); f.className = 'field';
+      f.innerHTML = '<label class="l">' + esc(g.q) + (g.req ? ' <span class="req">*</span>' : '') + ' · <span class="ar">' + esc(g.qa) + '</span></label>';
+      var c = document.createElement('div'); c.className = 'chips'; c.id = 'gk' + gi;
+      g.opts.forEach(function(o){
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.setAttribute('data-v', o[0]);
+        b.innerHTML = esc(o[0]) + '<span class="ar">' + esc(o[1]) + '</span>';
+        b.addEventListener('click', function(){
+          var was = b.classList.contains('on');
+          if(!g.multi) Array.prototype.forEach.call(c.querySelectorAll('.chip'), function(x){ x.classList.remove('on'); });
+          if(g.multi) b.classList.toggle('on'); else if(!was) b.classList.add('on');
+          if(d.other) $('gkOther').style.display = chipsOn('gk' + gi).indexOf('Other') >= 0 ? '' : 'none';
+        });
+        c.appendChild(b);
+      });
+      f.appendChild(c); box.appendChild(f);
+    });
+    if(d.other){
+      var o = document.createElement('div'); o.className = 'field'; o.id = 'gkOther'; o.style.display = 'none';
+      o.innerHTML = '<label class="l" for="gkOtherTxt">Describe the mistake · <span class="ar">اشرح الخطأ</span></label><textarea id="gkOtherTxt" rows="2"></textarea>';
+      box.appendChild(o);
+    }
+  }
+  function gkDetail(d){
+    var parts = [];
+    for(var gi = 0; gi < d.groups.length; gi++){
+      var g = d.groups[gi], on = chipsOn('gk' + gi);
+      if(g.req && !on.length) return { error: g.q };
+      if(on.length){
+        if(d.other){ var o = ($('gkOtherTxt') && $('gkOtherTxt').value.trim()) || ''; on = on.map(function(x){ return (x==='Other' && o) ? 'Other: ' + o : x; }); }
+        parts.push(g.name + ': ' + on.join(' + '));
+      }
+    }
+    return { text: parts.join('; ') };
+  }
   /* ---- mistake choices ---- */
   function chipsOn(id){ return Array.prototype.filter.call(document.querySelectorAll('#'+id+' .chip.on'), function(){return true;}).map(function(c){return c.getAttribute('data-v');}); }
   function syncMistake(){ var on=chipsOn('mChips');
@@ -432,7 +534,7 @@
     if(!match){ toast('No match video yet · لا يوجد فيديو'); return; }
     var t = { player:auth.player, match:match.name, tag:pending.tag, seconds:pending.seconds,
       saw:$('saw').value.trim(), decided:$('decided').value.trim(), better:$('better').value.trim(),
-      question:$('question').value.trim(), mistake:'', movement:'', pressing:'', status:'sending', id:Date.now() };
+      question:$('question').value.trim(), mistake:'', movement:'', pressing:'', gk:'', status:'sending', id:Date.now() };
     if(t.tag==='Mistake'){
       var m=chipsOn('mChips');
       if(!m.length){ toast('Choose the mistake · اختر الخطأ'); return; }
@@ -442,7 +544,8 @@
       t.mistake = m.map(function(x){ return (x==='Other' && o) ? 'Other: '+o : x; }).join('; ');
       t.movement = (m.indexOf('Wrong movement')>=0) ? d.join(' + ') : '';
     }
-    if(t.tag==='Pressing'){ var pc=chipsOn('pChips'); t.pressing = pc.length ? pc[0] : ''; }
+    if(pending.gk){ var gd=gkDetail(pending.gk); if(gd.error){ toast('Answer: '+gd.error+' · أكمل الإجابة'); return; } t.gk=gd.text; }
+    if(!pending.gk && t.tag==='Pressing'){ var pc=chipsOn('pChips'); t.pressing = pc.length ? pc[0] : ''; }
     if(t.tag==='Question for coach' && !t.question){ toast('Write your question · اكتب سؤالك'); return; }
     mine.push(t); persist(t); render();
     $('sheet').classList.remove('open'); pending=null;
@@ -451,11 +554,76 @@
   };
   function send(t){
     t.status='sending'; render();
-    call('saveTag', {player:t.player, token:auth?auth.token:'', match:t.match, tag:t.tag, seconds:t.seconds, saw:t.saw, decided:t.decided, better:t.better, question:t.question, mistake:t.mistake||'', movement:t.movement||'', pressing:t.pressing||''},
+    call('saveTag', {player:t.player, token:auth?auth.token:'', match:t.match, tag:t.tag, seconds:t.seconds, saw:t.saw, decided:t.decided, better:t.better, question:t.question, mistake:t.mistake||'', movement:t.movement||'', pressing:t.pressing||'', gk:t.gk||''},
       function(){ t.status='saved'; persist(t); render(); toast('Saved ✓ · تم الحفظ'); },
       function(e){ t.status='failed'; persist(t); render();
         if(e && String(e.message||e).indexOf('AUTH')>=0){ toast('Please log in again · سجّل الدخول مرة أخرى'); $('logout').click(); }
         else toast('Not saved — tap Retry · لم يتم الحفظ'); });
+  }
+
+  /* ---- admin: view any player's tags ---- */
+  var adminTags = [];
+  function isAdmin(p){ return (cfg.admins||[]).indexOf(p) >= 0; }
+  var TAG_COLORS = {'Won the ball':'#34c79a','Lost the ball':'#e5484d','Good decision':'#4a90e2','Mistake':'#e8a23b','Pressing':'#8e6cf0','Question for coach':'#71717a'};
+  GK_TAGS.forEach(function(d){ if(!TAG_COLORS[d.tag]) TAG_COLORS[d.tag]=d.color; });
+  function showAdmin(on){
+    $('adminList').style.display = on ? '' : 'none';
+    $('adminFilter').style.display = on ? '' : 'none';
+    $('myHead').style.display = on ? 'none' : ''; $('list').style.display = on ? 'none' : '';
+    if(on){ $('tags').style.display='none'; $('gkTags').style.display='none'; }
+    else if(auth){ var gk=isGK(auth.player), coach=/^Coach /.test(auth.player);
+      $('tags').style.display = gk ? 'none' : ''; $('gkTags').style.display = (gk||coach) ? '' : 'none'; }
+  }
+  function loadAdminPlayers(){
+    call('adminView', {player:auth.player, token:auth.token, match:match?match.name:''}, function(r){
+      if(!r || !r.ok) return;
+      var sel=$('adminSel'), keep=sel.value;
+      sel.innerHTML='<option value="">— my own tagging —</option>';
+      r.players.slice().sort(function(a,b){ return b.count-a.count || a.name.localeCompare(b.name); }).forEach(function(p){
+        var o=document.createElement('option'); o.value=p.name; o.textContent=p.name+' ('+p.count+')'; sel.appendChild(o); });
+      sel.value=keep; if(keep) loadAdminTags();
+    });
+  }
+  function loadAdminTags(){
+    var who=$('adminSel').value;
+    if(!who){ showAdmin(false); return; }
+    showAdmin(true); $('adminList').innerHTML='<div class="empty">Loading… · جارٍ التحميل</div>';
+    call('adminView', {player:auth.player, token:auth.token, match:match?match.name:'', target:who}, function(r){
+      if($('adminSel').value!==who) return;
+      if(!r || !r.ok){ $('adminList').innerHTML='<div class="empty">Could not load.</div>'; return; }
+      adminTags = r.tags.slice().sort(function(a,b){ return a.seconds-b.seconds; });
+      var f=$('adminFilter'), types={}; adminTags.forEach(function(t){ types[t.tag]=(types[t.tag]||0)+1; });
+      f.innerHTML='<option value="">All tags ('+adminTags.length+')</option>';
+      Object.keys(types).forEach(function(k){ var o=document.createElement('option'); o.value=k; o.textContent=tagLabel(k)+' ('+types[k]+')'; f.appendChild(o); });
+      renderAdmin();
+    }, function(){ $('adminList').innerHTML='<div class="empty">Could not connect. Try again.</div>'; });
+  }
+  $('adminSel').addEventListener('change', loadAdminTags);
+  $('adminFilter').addEventListener('change', renderAdmin);
+  function renderAdmin(){
+    var L=$('adminList'), f=$('adminFilter').value; L.innerHTML='';
+    var list=adminTags.filter(function(t){ return !f || t.tag===f; });
+    var sum=document.createElement('p'); sum.className='asum';
+    sum.textContent=$('adminSel').value+' · '+list.length+' tag'+(list.length===1?'':'s')+' · tap a tag to watch that moment';
+    L.appendChild(sum);
+    if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='No tags for this match.'; L.appendChild(e); return; }
+    list.forEach(function(t){
+      var b=document.createElement('button'); b.type='button'; b.className='acard';
+      var top=document.createElement('div'); top.className='top';
+      var tm=document.createElement('span'); tm.className='tm'; tm.textContent=fmt(t.seconds);
+      var tg=document.createElement('span'); tg.className='tg'; tg.textContent=tagLabel(t.tag); tg.style.background=TAG_COLORS[t.tag]||'#52525b';
+      var pl=document.createElement('span'); pl.className='play'; pl.textContent='▶ watch';
+      top.appendChild(tm); top.appendChild(tg); top.appendChild(pl); b.appendChild(top);
+      function line(k,v){ if(!v || v==='undefined') return; var d=document.createElement('div'); var kk=document.createElement('span'); kk.className='k'; kk.textContent=k+': '; d.appendChild(kk); d.appendChild(document.createTextNode(v)); b.appendChild(d); }
+      line('Mistake', t.mistake); line('Right movement', t.movement); line('Pressing', t.pressing); line('Detail', t.gk);
+      line('Saw', t.saw); line('Decided', t.decided); line('Could do better', t.better); line('Question', t.question);
+      b.addEventListener('click', function(){
+        Array.prototype.forEach.call(L.querySelectorAll('.acard.on'), function(x){ x.classList.remove('on'); }); b.classList.add('on');
+        if(player && ready){ player.seekTo(t.seconds, true); try{ player.playVideo(); }catch(e){} }
+        var v=document.querySelector('.video'); if(v && v.getBoundingClientRect().bottom < 60) window.scrollTo({top:0, behavior:'smooth'});
+      });
+      L.appendChild(b);
+    });
   }
 
   /* ---- list ---- */
@@ -466,7 +634,7 @@
       var r=document.createElement('div'); r.className='row';
       var tm=document.createElement('span'); tm.className='time'; tm.textContent=fmt(t.seconds);
       tm.style.cursor='pointer'; tm.onclick=function(){ if(player&&ready) player.seekTo(t.seconds,true); };
-      var tx=document.createElement('span'); tx.textContent=t.tag;
+      var tx=document.createElement('span'); tx.textContent=tagLabel(t.tag);
       var st=document.createElement('span'); st.className='st';
       if(t.status==='saved'){ st.className+=' ok'; st.textContent='✓ sent'; }
       else if(t.status==='failed'){ st.className+=' err'; var rb=document.createElement('button'); rb.textContent='Retry';

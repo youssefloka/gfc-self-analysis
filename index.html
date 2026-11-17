@@ -604,7 +604,7 @@
     var L=$('adminList'), f=$('adminFilter').value; L.innerHTML='';
     var list=adminTags.filter(function(t){ return !f || t.tag===f; });
     var sum=document.createElement('p'); sum.className='asum';
-    sum.textContent=$('adminSel').value+' · '+list.length+' tag'+(list.length===1?'':'s')+' · tap a tag to watch that moment';
+    sum.textContent=$('adminSel').value+' · '+list.length+' tag'+(list.length===1?'':'s')+' · tap a tag to watch it (starts 5s before)';
     L.appendChild(sum);
     if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='No tags for this match.'; L.appendChild(e); return; }
     list.forEach(function(t){
@@ -612,14 +612,14 @@
       var top=document.createElement('div'); top.className='top';
       var tm=document.createElement('span'); tm.className='tm'; tm.textContent=fmt(t.seconds);
       var tg=document.createElement('span'); tg.className='tg'; tg.textContent=tagLabel(t.tag); tg.style.background=TAG_COLORS[t.tag]||'#52525b';
-      var pl=document.createElement('span'); pl.className='play'; pl.textContent='▶ watch';
+      var pl=document.createElement('span'); pl.className='play'; pl.textContent='▶ watch (from 5s before)';
       top.appendChild(tm); top.appendChild(tg); top.appendChild(pl); b.appendChild(top);
       function line(k,v){ if(!v || v==='undefined') return; var d=document.createElement('div'); var kk=document.createElement('span'); kk.className='k'; kk.textContent=k+': '; d.appendChild(kk); d.appendChild(document.createTextNode(v)); b.appendChild(d); }
       line('Mistake', t.mistake); line('Right movement', t.movement); line('Pressing', t.pressing); line('Detail', t.gk);
       line('Saw', t.saw); line('Decided', t.decided); line('Could do better', t.better); line('Question', t.question);
       b.addEventListener('click', function(){
         Array.prototype.forEach.call(L.querySelectorAll('.acard.on'), function(x){ x.classList.remove('on'); }); b.classList.add('on');
-        if(player && ready){ player.seekTo(t.seconds, true); try{ player.playVideo(); }catch(e){} }
+        if(player && ready){ player.seekTo(Math.max(0, t.seconds - 5), true); try{ player.playVideo(); }catch(e){} }
         var v=document.querySelector('.video'); if(v && v.getBoundingClientRect().bottom < 60) window.scrollTo({top:0, behavior:'smooth'});
       });
       L.appendChild(b);

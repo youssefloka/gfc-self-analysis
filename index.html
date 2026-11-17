@@ -75,6 +75,12 @@
   .list .time{font-variant-numeric:tabular-nums;font-weight:700;min-width:58px}
   .list .st{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
   .list .st.ok{color:var(--mint)} .list .st.err{color:var(--red)}
+  .list .row{flex-wrap:wrap}
+  .list .row.v-Correct{border-left:4px solid #34c79a} .list .row.v-Needs{border-left:4px solid #e8a23b} .list .row.v-Wrong{border-left:4px solid #e5484d}
+  .fb{flex-basis:100%;font-size:13px;margin-top:2px;padding-left:68px}
+  .fb .vd{font-weight:700;padding:1px 8px;border-radius:999px;font-size:12px;margin-right:6px}
+  .fb .vd.Correct{background:#34c79a;color:#06281d} .fb .vd.Needs{background:#e8a23b;color:#2b1a00} .fb .vd.Wrong{background:#e5484d;color:#fff}
+  .fbsum{font-size:13px;color:var(--muted);margin:0 0 8px}
   .empty{color:var(--muted);font-size:14px}
   /* sheet */
   .sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center}
@@ -702,17 +708,31 @@
   function render(){
     var L=$('list'); L.innerHTML='';
     if(!mine.length){ L.innerHTML='<div class="empty">No tags yet · <span class="ar">لا توجد لحظات بعد</span></div>'; return; }
+    var c={Correct:0,'Needs adjustment':0,Wrong:0}, n=0;
+    mine.forEach(function(t){ if(c.hasOwnProperty(t.review)){ c[t.review]++; n++; } });
+    if(n){ var p=document.createElement('p'); p.className='fbsum';
+      p.textContent='Coach reviewed '+n+' of your '+mine.length+' tags: \u2713 '+c.Correct+' correct · ~ '+c['Needs adjustment']+' needs adjustment · \u2717 '+c.Wrong+' wrong · راجع المدرب '+n+' من لحظاتك';
+      L.appendChild(p); }
     mine.slice().sort(function(a,b){return a.seconds-b.seconds;}).forEach(function(t){
-      var r=document.createElement('div'); r.className='row';
+      var r=document.createElement('div'); r.className='row'+(c.hasOwnProperty(t.review)?' v-'+t.review.split(' ')[0]:'');
       var tm=document.createElement('span'); tm.className='time'; tm.textContent=fmt(t.seconds);
       tm.style.cursor='pointer'; tm.onclick=function(){ if(player&&ready) player.seekTo(t.seconds,true); };
       var tx=document.createElement('span'); tx.textContent=tagLabel(t.tag);
       var st=document.createElement('span'); st.className='st';
-      if(t.status==='saved'){ st.className+=' ok'; st.textContent='✓ sent'; }
+      if(t.status==='saved'){ st.className+=' ok'; st.textContent='\u2713 sent'; }
       else if(t.status==='failed'){ st.className+=' err'; var rb=document.createElement('button'); rb.textContent='Retry';
         rb.style.padding='4px 10px'; rb.onclick=function(){ send(t); }; st.appendChild(rb); }
       else { st.textContent='sending…'; }
-      r.appendChild(tm); r.appendChild(tx); r.appendChild(st); L.appendChild(r);
+      r.appendChild(tm); r.appendChild(tx); r.appendChild(st);
+      if(c.hasOwnProperty(t.review)){
+        var fb=document.createElement('div'); fb.className='fb';
+        var vd=document.createElement('span'); vd.className='vd '+t.review.split(' ')[0];
+        vd.textContent={'Correct':'\u2713 Correct · صحيح','Needs adjustment':'~ Needs adjustment · يحتاج تعديل','Wrong':'\u2717 Wrong · خطأ'}[t.review];
+        fb.appendChild(vd);
+        if(t.note && t.note!=='undefined'){ var nt=document.createElement('span'); nt.textContent='Coach: '+t.note; fb.appendChild(nt); }
+        r.appendChild(fb);
+      }
+      L.appendChild(r);
     });
   }
 })();

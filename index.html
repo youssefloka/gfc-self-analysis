@@ -54,6 +54,19 @@
   .acard .k{color:var(--muted);font-size:12px}
   .acard .play{margin-left:auto;color:var(--muted);font-size:12px}
   .asum{font-size:13px;color:var(--muted);margin:0 0 10px}
+  .acard{border-left-width:4px}
+  .acard.v-Correct{border-left-color:#34c79a} .acard.v-Needs{border-left-color:#e8a23b} .acard.v-Wrong{border-left-color:#e5484d}
+  .acard .watch{cursor:pointer}
+  .rev{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+  .rev .vb{display:flex;gap:6px;flex-wrap:wrap}
+  .rev .vb button{padding:6px 10px;font-size:13px;border-radius:999px}
+  .rev .vb button.on[data-v="Correct"]{background:#34c79a;color:#06281d;border-color:#34c79a}
+  .rev .vb button.on[data-v="Needs adjustment"]{background:#e8a23b;color:#2b1a00;border-color:#e8a23b}
+  .rev .vb button.on[data-v="Wrong"]{background:#e5484d;color:#fff;border-color:#e5484d}
+  .rev textarea{min-height:44px;margin-top:6px;font-size:14px;padding:8px}
+  .rev .rs{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+  .rev .rs button:disabled{opacity:.35}
+  .rev .rs button{margin-left:auto;padding:6px 12px;font-size:13px;background:var(--mint);color:#06281d;border:none;font-weight:700}
   .gkhead{grid-column:1/-1;font-size:13px;font-weight:700;color:var(--muted);margin:4px 0 0}
   .hint{font-size:13px;color:var(--muted);margin:10px 0 0}
   h3{font-size:14px;margin:18px 0 8px;color:var(--muted);font-weight:600;letter-spacing:.02em}
@@ -149,6 +162,14 @@
       <label class="l" for="adminSel">Admin · view a player · <span class="ar">عرض لاعب</span></label>
       <select id="adminSel"><option value="">— my own tagging —</option></select>
       <select id="adminFilter" style="display:none;margin-top:8px"><option value="">All tags</option></select>
+      <select id="reviewFilter" style="display:none;margin-top:8px">
+        <option value="">Review: all tags</option>
+        <option value="todo">Not reviewed yet</option>
+        <option value="fix">Wrong + Needs adjustment (to discuss)</option>
+        <option value="Wrong">Wrong only</option>
+        <option value="Needs adjustment">Needs adjustment only</option>
+        <option value="Correct">Correct only</option>
+      </select>
     </div>
   </div>
 
@@ -568,7 +589,7 @@
   GK_TAGS.forEach(function(d){ if(!TAG_COLORS[d.tag]) TAG_COLORS[d.tag]=d.color; });
   function showAdmin(on){
     $('adminList').style.display = on ? '' : 'none';
-    $('adminFilter').style.display = on ? '' : 'none';
+    $('adminFilter').style.display = on ? '' : 'none'; $('reviewFilter').style.display = on ? '' : 'none';
     $('myHead').style.display = on ? 'none' : ''; $('list').style.display = on ? 'none' : '';
     if(on){ $('tags').style.display='none'; $('gkTags').style.display='none'; }
     else if(auth){ var gk=isGK(auth.player), coach=/^Coach /.test(auth.player);
@@ -580,7 +601,7 @@
       var sel=$('adminSel'), keep=sel.value;
       sel.innerHTML='<option value="">— my own tagging —</option>';
       r.players.slice().sort(function(a,b){ return b.count-a.count || a.name.localeCompare(b.name); }).forEach(function(p){
-        var o=document.createElement('option'); o.value=p.name; o.textContent=p.name+' ('+p.count+')'; sel.appendChild(o); });
+        var o=document.createElement('option'); o.value=p.name; o.textContent=p.name+' ('+p.count+(p.count?' · '+(p.reviewed||0)+' reviewed':'')+')'; sel.appendChild(o); });
       sel.value=keep; if(keep) loadAdminTags();
     });
   }
@@ -600,30 +621,81 @@
   }
   $('adminSel').addEventListener('change', loadAdminTags);
   $('adminFilter').addEventListener('change', renderAdmin);
+  $('reviewFilter').addEventListener('change', renderAdmin);
   function renderAdmin(){
-    var L=$('adminList'), f=$('adminFilter').value; L.innerHTML='';
-    var list=adminTags.filter(function(t){ return !f || t.tag===f; });
+    var L=$('adminList'), f=$('adminFilter').value, rf=$('reviewFilter').value; L.innerHTML='';
+    var list=adminTags.filter(function(t){
+      if(f && t.tag!==f) return false;
+      if(rf==='todo') return !t.review;
+      if(rf==='fix') return t.review==='Wrong' || t.review==='Needs adjustment';
+      if(rf) return t.review===rf;
+      return true; });
+    var c={Correct:0,'Needs adjustment':0,Wrong:0}; adminTags.forEach(function(t){ if(c.hasOwnProperty(t.review)) c[t.review]++; });
+    var done=c.Correct+c['Needs adjustment']+c.Wrong;
     var sum=document.createElement('p'); sum.className='asum';
-    sum.textContent=$('adminSel').value+' · '+list.length+' tag'+(list.length===1?'':'s')+' · tap a tag to watch it (starts 5s before)';
+    sum.textContent=$('adminSel').value+' · showing '+list.length+' of '+adminTags.length+' · reviewed '+done+'/'+adminTags.length+
+      ' (✓ '+c.Correct+' · ~ '+c['Needs adjustment']+' · ✗ '+c.Wrong+') · tap the time to watch (starts 5s before)';
     L.appendChild(sum);
-    if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='No tags for this match.'; L.appendChild(e); return; }
-    list.forEach(function(t){
-      var b=document.createElement('button'); b.type='button'; b.className='acard';
-      var top=document.createElement('div'); top.className='top';
-      var tm=document.createElement('span'); tm.className='tm'; tm.textContent=fmt(t.seconds);
-      var tg=document.createElement('span'); tg.className='tg'; tg.textContent=tagLabel(t.tag); tg.style.background=TAG_COLORS[t.tag]||'#52525b';
-      var pl=document.createElement('span'); pl.className='play'; pl.textContent='▶ watch (from 5s before)';
-      top.appendChild(tm); top.appendChild(tg); top.appendChild(pl); b.appendChild(top);
-      function line(k,v){ if(!v || v==='undefined') return; var d=document.createElement('div'); var kk=document.createElement('span'); kk.className='k'; kk.textContent=k+': '; d.appendChild(kk); d.appendChild(document.createTextNode(v)); b.appendChild(d); }
-      line('Mistake', t.mistake); line('Right movement', t.movement); line('Pressing', t.pressing); line('Detail', t.gk);
-      line('Saw', t.saw); line('Decided', t.decided); line('Could do better', t.better); line('Question', t.question);
-      b.addEventListener('click', function(){
-        Array.prototype.forEach.call(L.querySelectorAll('.acard.on'), function(x){ x.classList.remove('on'); }); b.classList.add('on');
-        if(player && ready){ player.seekTo(Math.max(0, t.seconds - 5), true); try{ player.playVideo(); }catch(e){} }
-        var v=document.querySelector('.video'); if(v && v.getBoundingClientRect().bottom < 60) window.scrollTo({top:0, behavior:'smooth'});
+    if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='No tags here.'; L.appendChild(e); return; }
+    list.forEach(function(t){ L.appendChild(adminCard(t)); });
+  }
+  function adminCard(t){
+    var b=document.createElement('div'); b.className='acard';
+    function mark(){ b.className='acard'+(t.review ? ' v-'+t.review.split(' ')[0] : ''); }
+    mark();
+    var top=document.createElement('div'); top.className='top watch';
+    var tm=document.createElement('span'); tm.className='tm'; tm.textContent=fmt(t.seconds);
+    var tg=document.createElement('span'); tg.className='tg'; tg.textContent=tagLabel(t.tag); tg.style.background=TAG_COLORS[t.tag]||'#52525b';
+    var pl=document.createElement('span'); pl.className='play'; pl.textContent='\u25b6 watch (from 5s before)';
+    top.appendChild(tm); top.appendChild(tg); top.appendChild(pl); b.appendChild(top);
+    var body=document.createElement('div'); body.className='watch'; b.appendChild(body);
+    function line(k,v){ if(!v || v==='undefined') return; var d=document.createElement('div'); var kk=document.createElement('span'); kk.className='k'; kk.textContent=k+': '; d.appendChild(kk); d.appendChild(document.createTextNode(v)); body.appendChild(d); }
+    line('Mistake', t.mistake); line('Right movement', t.movement); line('Pressing', t.pressing); line('Detail', t.gk);
+    line('Saw', t.saw); line('Decided', t.decided); line('Could do better', t.better); line('Question', t.question);
+    function watch(){
+      Array.prototype.forEach.call(document.querySelectorAll('.acard.on'), function(x){ x.classList.remove('on'); }); b.classList.add('on');
+      if(player && ready){ player.seekTo(Math.max(0, t.seconds - 5), true); try{ player.playVideo(); }catch(e){} }
+      var v=document.querySelector('.video'); if(v && v.getBoundingClientRect().bottom < 60) window.scrollTo({top:0, behavior:'smooth'});
+    }
+    top.addEventListener('click', watch); body.addEventListener('click', watch);
+    // coach review
+    var rv=document.createElement('div'); rv.className='rev';
+    var vb=document.createElement('div'); vb.className='vb';
+    var pick=t.review||'';
+    [['Correct','\u2713 Correct'],['Needs adjustment','~ Needs adjustment'],['Wrong','\u2717 Wrong']].forEach(function(o){
+      var x=document.createElement('button'); x.type='button'; x.setAttribute('data-v',o[0]); x.textContent=o[1];
+      if(pick===o[0]) x.classList.add('on');
+      x.addEventListener('click', function(){
+        pick = (pick===o[0]) ? '' : o[0];
+        Array.prototype.forEach.call(vb.querySelectorAll('button'), function(y){ y.classList.toggle('on', y.getAttribute('data-v')===pick); });
+        sv.disabled=false; st.textContent='not saved yet';
       });
-      L.appendChild(b);
+      vb.appendChild(x);
     });
+    rv.appendChild(vb);
+    var nt=document.createElement('textarea'); nt.placeholder='Coach note for the player (optional) · ملاحظة المدرب'; nt.value=(t.note && t.note!=='undefined')?t.note:'';
+    nt.addEventListener('input', function(){ sv.disabled=false; st.textContent='not saved yet'; });
+    rv.appendChild(nt);
+    var rs=document.createElement('div'); rs.className='rs';
+    var st=document.createElement('span'); st.textContent = t.review ? ('Reviewed: '+t.review+(t.by?' · '+t.by:'')) : 'Not reviewed';
+    var sv=document.createElement('button'); sv.type='button'; sv.textContent='Save review'; sv.disabled=true;
+    sv.addEventListener('click', function(){
+      if(!pick && nt.value.trim()){ toast('Choose Correct, Needs adjustment or Wrong'); return; }
+      sv.disabled=true; st.textContent='Saving…';
+      call('reviewTag', {player:auth.player, token:auth.token, target:$('adminSel').value, row:t.row, seconds:t.seconds, verdict:pick, note:nt.value.trim()}, function(r){
+        if(r && r.ok){ t.review=r.verdict; t.note=r.note; t.by=r.by; mark(); st.textContent = t.review ? ('Saved \u2713 · '+t.review) : 'Review cleared'; refreshSummary(); }
+        else if(r && r.reason==='moved'){ st.textContent='This tag moved in the sheet — reload the player'; sv.disabled=false; }
+        else { st.textContent='Not saved — try again'; sv.disabled=false; }
+      }, function(){ st.textContent='Not saved — check connection'; sv.disabled=false; });
+    });
+    rs.appendChild(st); rs.appendChild(sv); rv.appendChild(rs);
+    b.appendChild(rv);
+    return b;
+  }
+  function refreshSummary(){
+    var c={Correct:0,'Needs adjustment':0,Wrong:0}; adminTags.forEach(function(t){ if(c.hasOwnProperty(t.review)) c[t.review]++; });
+    var done=c.Correct+c['Needs adjustment']+c.Wrong, p=document.querySelector('#adminList .asum');
+    if(p) p.textContent=p.textContent.replace(/reviewed \d+\/\d+ \(.*?\)/, 'reviewed '+done+'/'+adminTags.length+' (\u2713 '+c.Correct+' · ~ '+c['Needs adjustment']+' · \u2717 '+c.Wrong+')');
   }
 
   /* ---- list ---- */

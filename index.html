@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>G FC · Self-Analysis</title>
+<style>
+  :root{
+    --bg:#0f0f10; --card:#1b1b1d; --line:#2c2c30; --text:#f4f4f5; --muted:#a1a1aa;
+    --mint:#34c79a; --red:#e5484d; --amber:#e8a23b; --blue:#4a90e2; --violet:#8e6cf0; --grey:#71717a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,"Noto Sans Arabic",sans-serif}
+  body{padding:0 0 calc(24px + env(safe-area-inset-bottom))}
+  .ar{direction:rtl;unicode-bidi:isolate;color:var(--muted);font-size:.86em}
+  header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  header .t{font-weight:700;font-size:16px;line-height:1.2}
+  header .m{color:var(--muted);font-size:12px}
+  .wrap{max-width:1100px;margin:0 auto}
+  .video{position:sticky;top:0;z-index:5;background:#000}
+  .video .ratio{position:relative;width:100%;padding-top:56.25%}
+  .video .ratio > div,.video .ratio iframe{position:absolute;inset:0;width:100%;height:100%}
+  .vbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+  .vbar button{flex:0 0 auto}
+  .clock{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;font-size:18px}
+  .panel{padding:14px 16px}
+  label.l{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+  select,textarea{width:100%;font-size:16px;color:var(--text);background:#111113;border:1px solid var(--line);
+    border-radius:10px;padding:12px}
+  textarea{min-height:64px;resize:vertical;font-family:inherit}
+  button{font:inherit;color:var(--text);background:#26262a;border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:15px;cursor:pointer}
+  button:active{transform:scale(.98)}
+  .tags{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .tag{min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    font-weight:700;font-size:15px;border:none;color:#fff;border-radius:14px}
+  .tag .ar{color:rgba(255,255,255,.85);font-weight:600}
+  .tag[data-tag="Won the ball"]{background:var(--mint);color:#06281d}
+  .tag[data-tag="Won the ball"] .ar{color:#0b3d2c}
+  .tag[data-tag="Lost the ball"]{background:var(--red)}
+  .tag[data-tag="Good decision"]{background:var(--blue)}
+  .tag[data-tag="Mistake"]{background:var(--amber);color:#2b1a00}
+  .tag[data-tag="Mistake"] .ar{color:#4a2e00}
+  .tag[data-tag="Pressing"]{background:var(--violet)}
+  .tag[data-tag="Question for coach"]{background:var(--grey)}
+  .tags.disabled .tag{opacity:.35;pointer-events:none}
+  .hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+  h3{font-size:14px;margin:18px 0 8px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .list .row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:14px}
+  .list .time{font-variant-numeric:tabular-nums;font-weight:700;min-width:58px}
+  .list .st{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+  .list .st.ok{color:var(--mint)} .list .st.err{color:var(--red)}
+  .empty{color:var(--muted);font-size:14px}
+  /* sheet */
+  .sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center}
+  .sheet.open{display:flex}
+  .sheet .box{width:100%;max-width:640px;max-height:92vh;overflow:auto;background:var(--card);
+    border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+  .sheet .head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:700;background:#26262a}
+  .field{margin-bottom:12px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:9px 12px;border-radius:999px;font-size:14px;line-height:1.25;background:#26262a;border:1px solid var(--line);text-align:left}
+  .chip .ar{display:block;font-size:.82em}
+  .chip.on{background:var(--amber);color:#2b1a00;border-color:var(--amber)}
+  .chip.on .ar{color:#4a2e00}
+  .chips.dir{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .dir .chip{text-align:center;padding:8px 4px}
+  .req{color:var(--amber);font-weight:700}
+  .actions{display:flex;gap:10px;margin-top:6px}
+  .actions .save{flex:1;background:var(--mint);color:#06281d;border:none;font-weight:700;min-height:48px}
+  .actions .cancel{min-height:48px}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:#111;border:1px solid var(--line);padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;
+    opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .gate{padding:14px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+  .pinrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pinrow input{width:96px;font-size:22px;letter-spacing:8px;text-align:center;color:var(--text);background:#111113;
+    border:1px solid var(--line);border-radius:10px;padding:10px 8px}
+  .pinrow .go{background:var(--mint);color:#06281d;border:none;font-weight:700;min-height:46px}
+  .pinmsg{font-size:13px;margin-top:8px;color:var(--muted)} .pinmsg.err{color:var(--red)}
+  .who{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700}
+  .who button{margin-left:auto;font-size:13px;padding:6px 10px;font-weight:400}
+  .err-box{margin:16px;padding:14px;border-radius:12px;background:#2a1213;border:1px solid #5a2326;font-size:14px}
+  /* tablets / laptops: video left, buttons right */
+  @media (min-width:900px) and (min-height:501px){
+    .layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);align-items:start}
+    .video{position:sticky;top:0}
+  }
+  /* phones held sideways: compact header, video sized to the screen height */
+  @media (orientation:landscape) and (max-height:500px){
+    header{display:none}
+    .gate{display:flex;align-items:center;gap:10px;padding:6px 12px}
+    .gate label.l{margin:0;white-space:nowrap}
+    .gate select{padding:6px 10px}
+    .layout{display:grid;grid-template-columns:calc((100vh - 110px) * 16 / 9) minmax(0,1fr);align-items:start}
+    .video{position:static}
+    .vbar{padding:4px 8px} .vbar button{padding:4px 10px;font-size:14px} .clock{font-size:15px}
+    .panel{padding:8px 10px}
+    .tags{gap:6px;margin-top:0} .tag{min-height:44px;font-size:13px;border-radius:10px}
+    .hint,h3,.list{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="2" width="24" height="26" rx="3" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M9 9h12v4h-4M9 9v10l6 4 6-4v-4h-6" fill="none" stroke="#fff" stroke-width="2.2"/></svg>
+    <div>
+      <div class="t">Self-Analysis · <span class="ar" style="color:var(--text);font-size:1em">التحليل الذاتي</span></div>
+      <div class="m" id="match">Loading…</div>
+    </div>
+  </header>
+
+  <div class="gate" id="nameBox">
+    <label class="l" for="player">My name · <span class="ar">اسمي</span></label>
+    <select id="player"><option value="">— choose your name · اختر اسمك —</option></select>
+    <div id="pinBox" style="display:none;margin-top:10px">
+      <label class="l" id="pinLabel"></label>
+      <div class="pinrow">
+        <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••" aria-label="PIN">
+        <input id="pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••" aria-label="Repeat PIN" style="display:none">
+        <button class="go" id="pinGo">OK</button>
+      </div>
+      <div class="pinmsg" id="pinMsg"></div>
+    </div>
+  </div>
+  <div class="gate" id="whoBox" style="display:none">
+    <div class="who"><span id="whoName"></span>
+      <button id="logout">Not me / Log out · <span class="ar">لست أنا / خروج</span></button></div>
+    <div id="matchRow" style="margin-top:10px">
+      <label class="l" for="matchSel">Match · <span class="ar">المباراة</span></label>
+      <select id="matchSel"></select>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="video">
+      <div class="ratio"><div id="yt"></div></div>
+      <div class="vbar">
+        <button id="back10" aria-label="Back 10 seconds">⟲ 10s</button>
+        <button id="back3" aria-label="Back 3 seconds">⟲ 3s</button>
+        <button id="fwd10" aria-label="Forward 10 seconds">10s ⟳</button>
+        <div class="clock" id="clock">0:00</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="tags disabled" id="tags">
+        <button class="tag" data-tag="Won the ball">Won the ball<span class="ar">استخلصت الكرة</span></button>
+        <button class="tag" data-tag="Lost the ball">Lost the ball<span class="ar">فقدت الكرة</span></button>
+        <button class="tag" data-tag="Good decision">Good decision<span class="ar">قرار جيد</span></button>
+        <button class="tag" data-tag="Mistake">Mistake<span class="ar">خطأ</span></button>
+        <button class="tag" data-tag="Pressing">Pressing<span class="ar">ضغط</span></button>
+        <button class="tag" data-tag="Question for coach">Question for coach<span class="ar">سؤال للمدرب</span></button>
+      </div>
+      <p class="hint" id="hint">Choose your name and enter your 4-digit PIN. Then play the video and tap a button at the moment you see yourself. · <span class="ar">اختر اسمك وأدخل الرقم السري (4 أرقام)، ثم شغّل الفيديو واضغط على الزر في اللحظة التي ترى فيها نفسك.</span></p>
+
+      <h3>My tags · <span class="ar">لحظاتي</span></h3>
+      <div class="list" id="list"><div class="empty">No tags yet · <span class="ar">لا توجد لحظات بعد</span></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="box">
+    <div class="head">
+      <span class="pill" id="sTime">0:00</span>
+      <span class="pill" id="sTag">Tag</span>
+    </div>
+    <div id="mistakeBox" style="display:none">
+      <div class="field">
+        <label class="l">What was the mistake? <span class="req">*</span> (choose one or more) · <span class="ar">ما هو الخطأ؟ (اختر واحداً أو أكثر)</span></label>
+        <div class="chips" id="mChips">
+          <button type="button" class="chip" data-v="Mis-pass">Mis-pass<span class="ar">تمريرة خاطئة</span></button>
+          <button type="button" class="chip" data-v="Opportunity to pass instead of keeping the ball">Opportunity to pass instead of keeping the ball<span class="ar">فرصة للتمرير بدلاً من الاحتفاظ بالكرة</span></button>
+          <button type="button" class="chip" data-v="Opportunity to pass from one touch">Opportunity to pass from one touch<span class="ar">فرصة للتمرير من لمسة واحدة</span></button>
+          <button type="button" class="chip" data-v="Opportunity to keep the ball">Opportunity to keep the ball<span class="ar">فرصة للاحتفاظ بالكرة</span></button>
+          <button type="button" class="chip" data-v="Opportunity to move into free space">Opportunity to move into free space<span class="ar">فرصة للتحرك في مساحة فارغة</span></button>
+          <button type="button" class="chip" data-v="Should pass to the other side">Should pass to the other side<span class="ar">كان يجب التمرير للجهة الأخرى</span></button>
+          <button type="button" class="chip" data-v="Body position">Body position<span class="ar">وضعية الجسم</span></button>
+          <button type="button" class="chip" data-v="Wrong movement">Wrong movement<span class="ar">تحرك خاطئ</span></button>
+          <button type="button" class="chip" data-v="Other">Other<span class="ar">أخرى</span></button>
+        </div>
+      </div>
+      <div class="field" id="moveBox" style="display:none">
+        <label class="l">What was the right movement? <span class="req">*</span> (you can combine, e.g. Outside + Up) · <span class="ar">ما هو التحرك الصحيح؟ (يمكنك الجمع، مثل: للخارج + للأمام)</span></label>
+        <div class="chips dir" id="dChips">
+          <button type="button" class="chip" data-v="Outside" data-g="h">Outside<span class="ar">للخارج</span></button>
+          <button type="button" class="chip" data-v="Inside" data-g="h">Inside<span class="ar">للداخل</span></button>
+          <button type="button" class="chip" data-v="Up" data-g="v">Up<span class="ar">للأمام</span></button>
+          <button type="button" class="chip" data-v="Down" data-g="v">Down<span class="ar">للخلف</span></button>
+        </div>
+      </div>
+      <div class="field" id="otherBox" style="display:none">
+        <label class="l" for="otherTxt">Describe the mistake · <span class="ar">اشرح الخطأ</span></label>
+        <textarea id="otherTxt" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="field" id="pressBox" style="display:none">
+      <label class="l">Pressing decision (choose one) · <span class="ar">قرار الضغط (اختر واحداً)</span></label>
+      <div class="chips" id="pChips">
+        <button type="button" class="chip" data-v="Should have pressed">Should have pressed<span class="ar">كان يجب أن أضغط</span></button>
+        <button type="button" class="chip" data-v="Should have delayed">Should have delayed<span class="ar">كان يجب أن أتأخر (أؤخر الضغط)</span></button>
+      </div>
+    </div>
+    <div id="analysisFields">
+      <div class="field">
+        <label class="l" for="saw">What did I see? · <span class="ar">ماذا رأيت؟</span></label>
+        <textarea id="saw" rows="2"></textarea>
+      </div>
+      <div class="field">
+        <label class="l" for="decided">What did I decide? · <span class="ar">ماذا قررت؟</span></label>
+        <textarea id="decided" rows="2"></textarea>
+      </div>
+      <div class="field">
+        <label class="l" for="better">What could I have done better? · <span class="ar">ماذا كان يمكنني أن أفعل بشكل أفضل؟</span></label>
+        <textarea id="better" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="field">
+      <label class="l" for="question" id="qLabel">Question to the coach (optional, only the coach sees it) · <span class="ar">سؤال للمدرب (اختياري، يراه المدرب فقط)</span></label>
+      <textarea id="question" rows="2"></textarea>
+    </div>
+    <div class="actions">
+      <button class="cancel" id="cancel">Cancel · <span class="ar">إلغاء</span></button>
+      <button class="save" id="save">Save · <span class="ar" style="color:#0b3d2c">حفظ</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var cfg = {matches:[], players:[]};
+  var match = null;            // {name, videoId} the player is watching
+  var player = null, ready = false, pending = null;
+  var mine = [];               // this player's tags: from the sheet + any not sent yet
+  var auth = null;             // {player, token} after PIN login
+  var pinMode = 'enter';
+  var $ = function(id){ return document.getElementById(id); };
+
+  function fmt(s){ s=Math.max(0,Math.floor(s||0)); var h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+    return (h? h+':'+String(m).padStart(2,'0') : m)+':'+String(x).padStart(2,'0'); }
+  function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t=setTimeout(function(){ t.classList.remove('show'); },2200); }
+  function store(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+  function load(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+  function key(){ return 'gfc_unsent_'+(match?match.name:'')+'_'+(auth?auth.player:''); }
+  function persist(t){ var k='gfc_unsent_'+t.match+'_'+t.player;
+    var arr=load(k,[]).filter(function(x){ return x.id!==t.id; });
+    if(t.status!=='saved') arr.push(t); store(k,arr); }
+
+  /* ---- server bridge: JSON over HTTPS to the Apps Script web app (no Google sign-in, no cookies) ---- */
+  var API = 'https://script.google.com/macros/s/AKfycbza6Cw-Bzf-mF-UIpfCaunv_pGkXdxyf62-k-zxQfHkCcpng_AAr-pH-hL5s3egFT3D/exec';
+  function call(fn, arg, ok, fail){
+    fail = fail || function(){};
+    fetch(API, { method:'POST', credentials:'omit', redirect:'follow',
+                 headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+                 body: JSON.stringify({ fn:fn, arg:arg }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(j && j.ok) ok(j.result); else fail({ message: (j && j.error) || 'error' }); })
+      .catch(function(e){ fail(e); });
+  }
+
+  /* ---- config ---- */
+  call('getConfig', undefined, function(c){
+    cfg = c || cfg;
+    var sel = $('player');
+    (cfg.players||[]).forEach(function(n){ var o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+    var ms = $('matchSel');
+    (cfg.matches||[]).forEach(function(m){ var o=document.createElement('option'); o.value=m.name; o.textContent=m.name; ms.appendChild(o); });
+    $('matchRow').style.display = (cfg.matches||[]).length > 1 ? '' : 'none';
+    var lastM = load('gfc_match','');
+    setMatch(findMatch(lastM) || (cfg.matches||[])[0] || null);
+    var a = load('gfc_auth', null);
+    if(a && a.player && a.token && cfg.players.indexOf(a.player)>=0){
+      sel.value=a.player; $('pinMsg').textContent='Loading… · جارٍ التحميل';
+      call('getMyTags', {player:a.player, token:a.token, match:match?match.name:''}, function(r){
+        if(r && r.ok){ loggedIn(a.player, a.token, r.tags); } else { store('gfc_auth', null); onPlayer(); }
+      }, function(){ loggedIn(a.player, a.token, null); });
+    }
+  }, function(){ $('match').textContent='Could not load. Check your connection and reopen the link.'; });
+
+  function findMatch(name){ var m=cfg.matches||[]; for(var i=0;i<m.length;i++) if(m[i].name===name) return m[i]; return null; }
+  function setMatch(m){
+    match = m;
+    $('match').textContent = m ? m.name : '';
+    if(m){ $('matchSel').value = m.name; store('gfc_match', m.name); }
+    if(!m){
+      $('yt').innerHTML='<div class="err-box">No match video yet. The coach needs to add it in the sheet (Matches tab).<br><span class="ar">لا يوجد فيديو بعد.</span></div>';
+      return;
+    }
+    if(player && ready){ try{ player.cueVideoById(m.videoId); }catch(e){} }
+    else if(!player){ loadYT(); }
+  }
+  $('matchSel').addEventListener('change', function(){
+    var m = findMatch($('matchSel').value); if(!m || (match && m.name===match.name)) return;
+    setMatch(m);
+    if(!auth) return;
+    mine = load(key(), []).map(function(t){ t.status='failed'; return t; }); render();
+    $('list').innerHTML='<div class="empty">Loading… · جارٍ التحميل</div>';
+    var want = m.name;
+    call('getMyTags', {player:auth.player, token:auth.token, match:want}, function(r){
+      if(!match || match.name!==want) return;
+      if(r && r.ok){ mine = r.tags.map(function(t){ t.status='saved'; return t; })
+        .concat(load(key(), []).map(function(t){ t.status='failed'; return t; })); render(); }
+      else { $('logout').click(); }
+    }, function(){ render(); toast('Could not load your tags · تعذر التحميل'); });
+  });
+
+  /* ---- YouTube ---- */
+  function loadYT(){
+    window.onYouTubeIframeAPIReady = function(){
+      player = new YT.Player('yt', {
+        videoId: match ? match.videoId : '',
+        playerVars: { playsinline:1, rel:0, modestbranding:1, fs:0, controls:1 },
+        events: { onReady:function(){ ready=true; } }
+      });
+    };
+    var s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+  }
+  function now(){ return (player && ready && player.getCurrentTime) ? player.getCurrentTime() : 0; }
+  setInterval(function(){ $('clock').textContent = fmt(now()); }, 500);
+  function seekBy(d){ if(player&&ready){ player.seekTo(Math.max(0,now()+d), true); } }
+  $('back10').onclick=function(){ seekBy(-10); };
+  $('back3').onclick=function(){ seekBy(-3); };
+  $('fwd10').onclick=function(){ seekBy(10); };
+
+  /* ---- player choice + PIN ---- */
+  function setPinMode(m){
+    pinMode=m; $('pin').value=''; $('pin2').value='';
+    $('pin2').style.display = m==='create' ? '' : 'none';
+    $('pinLabel').innerHTML = m==='create'
+      ? 'First time: create your 4-digit PIN (type it twice). Remember it, you will use it on any phone or computer. · <span class="ar">أول مرة: أنشئ رقمك السري من 4 أرقام (اكتبه مرتين). احفظه، ستستخدمه على أي جهاز.</span>'
+      : 'Enter your 4-digit PIN · <span class="ar">أدخل رقمك السري (4 أرقام)</span>';
+  }
+  function onPlayer(){
+    var p=$('player').value;
+    auth=null; mine=[]; render();
+    $('tags').classList.add('disabled'); $('hint').style.display='';
+    $('pinMsg').textContent=''; $('pinMsg').className='pinmsg';
+    if(!p){ $('pinBox').style.display='none'; return; }
+    $('pinBox').style.display='none'; $('pinMsg').textContent='';
+    call('hasPin', p, function(r){
+      if($('player').value!==p) return;
+      setPinMode(r && r.hasPin ? 'enter' : 'create');
+      $('pinBox').style.display=''; $('pin').focus();
+    }, function(){ if($('player').value===p) pinErr('Could not connect. Try again. · تعذر الاتصال'); });
+  }
+  function pinErr(m){ $('pinMsg').textContent=m; $('pinMsg').className='pinmsg err'; }
+  $('player').addEventListener('change', onPlayer);
+  ['pin','pin2'].forEach(function(id){ $(id).addEventListener('keydown', function(e){ if(e.key==='Enter') $('pinGo').click(); }); });
+  $('pinGo').onclick=function(){
+    var p=$('player').value, a=$('pin').value.trim(), b=$('pin2').value.trim();
+    if(!/^[0-9]{4}$/.test(a)){ pinErr('The PIN must be exactly 4 numbers · الرقم السري 4 أرقام فقط'); return; }
+    if(pinMode==='create' && a!==b){ pinErr('The two PINs are not the same · الرقمان غير متطابقين'); return; }
+    $('pinGo').disabled=true; $('pinMsg').className='pinmsg'; $('pinMsg').textContent='Checking… · جارٍ التحقق';
+    call('login', {player:p, pin:a, mode:pinMode, match:match?match.name:''}, function(r){
+      $('pinGo').disabled=false;
+      if(r && r.ok){ loggedIn(p, r.token, r.tags); toast(r.created ? 'PIN created ✓ · تم إنشاء الرقم السري' : 'Welcome ✓ · أهلاً'); return; }
+      var why = r && r.reason;
+      if(why==='wrong') pinErr('Wrong PIN. '+r.left+' tries left. · رقم خاطئ. متبقي '+r.left+' محاولات');
+      else if(why==='locked') pinErr('Too many wrong tries. Wait '+r.minutes+' min or ask the coach. · محاولات كثيرة خاطئة. انتظر '+r.minutes+' دقيقة أو اسأل المدرب');
+      else if(why==='exists'){ setPinMode('enter'); pinErr('This name already has a PIN. Enter it. If it is not you, tell the coach. · هذا الاسم له رقم سري بالفعل. إن لم يكن أنت، أخبر المدرب'); }
+      else if(why==='nopin'){ setPinMode('create'); pinErr('No PIN yet, create one. · لا يوجد رقم سري، أنشئ واحداً'); }
+      else pinErr('Something went wrong. Try again. · حدث خطأ');
+    }, function(){ $('pinGo').disabled=false; pinErr('Could not connect. Try again. · تعذر الاتصال'); });
+  };
+  function loggedIn(p, tok, serverTags){
+    auth={player:p, token:tok}; store('gfc_auth', auth);
+    var local = load(key(), []);
+    if(serverTags){
+      mine = serverTags.map(function(t){ t.status='saved'; return t; });
+    } else { mine = []; toast('Offline: only tags from this device are shown · غير متصل'); }
+    local.forEach(function(t){ t.status='failed'; mine.push(t); });
+    $('pinBox').style.display='none'; $('nameBox').style.display='none';
+    $('whoName').textContent=p; $('whoBox').style.display='';
+    $('tags').classList.remove('disabled'); $('hint').style.display='none';
+    render();
+  }
+  $('logout').onclick=function(){
+    store('gfc_auth', null); auth=null; mine=[]; render();
+    $('whoBox').style.display='none'; $('nameBox').style.display='';
+    $('player').value=''; onPlayer();
+  };
+
+  /* ---- tagging ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('.tag'), function(b){
+    b.addEventListener('click', function(){
+      if(!auth){ toast('Choose your name and enter your PIN first · اختر اسمك وأدخل رقمك السري'); return; }
+      if(player && ready){ try{ player.pauseVideo(); }catch(e){} }
+      var tag=b.getAttribute('data-tag');
+      pending = { tag:tag, seconds:Math.floor(now()) };
+      $('sTime').textContent = fmt(pending.seconds);
+      $('sTag').textContent = tag;
+      var qOnly = (tag==='Question for coach');
+      $('analysisFields').style.display = qOnly ? 'none' : '';
+      $('mistakeBox').style.display = (tag==='Mistake') ? '' : 'none'; resetMistake();
+      $('pressBox').style.display = (tag==='Pressing') ? '' : 'none';
+      Array.prototype.forEach.call(document.querySelectorAll('#pChips .chip'), function(c){ c.classList.remove('on'); });
+      ['saw','decided','better','question'].forEach(function(id){ $(id).value=''; });
+      $('sheet').classList.add('open');
+      setTimeout(function(){ (qOnly ? $('question') : $('saw')).focus(); }, 50);
+    });
+  });
+  /* ---- mistake choices ---- */
+  function chipsOn(id){ return Array.prototype.filter.call(document.querySelectorAll('#'+id+' .chip.on'), function(){return true;}).map(function(c){return c.getAttribute('data-v');}); }
+  function syncMistake(){ var on=chipsOn('mChips');
+    $('moveBox').style.display = on.indexOf('Wrong movement')>=0 ? '' : 'none';
+    $('otherBox').style.display = on.indexOf('Other')>=0 ? '' : 'none'; }
+  Array.prototype.forEach.call(document.querySelectorAll('#mChips .chip'), function(c){
+    c.addEventListener('click', function(){ c.classList.toggle('on'); syncMistake(); }); });
+  Array.prototype.forEach.call(document.querySelectorAll('#dChips .chip'), function(c){
+    c.addEventListener('click', function(){ var g=c.getAttribute('data-g'), was=c.classList.contains('on');
+      Array.prototype.forEach.call(document.querySelectorAll('#dChips .chip[data-g="'+g+'"]'), function(x){ x.classList.remove('on'); });
+      if(!was) c.classList.add('on'); }); });
+  Array.prototype.forEach.call(document.querySelectorAll('#pChips .chip'), function(c){
+    c.addEventListener('click', function(){ var was=c.classList.contains('on');
+      Array.prototype.forEach.call(document.querySelectorAll('#pChips .chip'), function(x){ x.classList.remove('on'); });
+      if(!was) c.classList.add('on'); }); });
+  function resetMistake(){ Array.prototype.forEach.call(document.querySelectorAll('#mistakeBox .chip'), function(c){ c.classList.remove('on'); });
+    $('otherTxt').value=''; syncMistake(); }
+  $('cancel').onclick=function(){ $('sheet').classList.remove('open'); pending=null; };
+  $('save').onclick=function(){
+    if(!pending) return;
+    if(!match){ toast('No match video yet · لا يوجد فيديو'); return; }
+    var t = { player:auth.player, match:match.name, tag:pending.tag, seconds:pending.seconds,
+      saw:$('saw').value.trim(), decided:$('decided').value.trim(), better:$('better').value.trim(),
+      question:$('question').value.trim(), mistake:'', movement:'', pressing:'', status:'sending', id:Date.now() };
+    if(t.tag==='Mistake'){
+      var m=chipsOn('mChips');
+      if(!m.length){ toast('Choose the mistake · اختر الخطأ'); return; }
+      var d=chipsOn('dChips');
+      if(m.indexOf('Wrong movement')>=0 && !d.length){ toast('Choose the right movement · اختر التحرك الصحيح'); return; }
+      var o=$('otherTxt').value.trim();
+      t.mistake = m.map(function(x){ return (x==='Other' && o) ? 'Other: '+o : x; }).join('; ');
+      t.movement = (m.indexOf('Wrong movement')>=0) ? d.join(' + ') : '';
+    }
+    if(t.tag==='Pressing'){ var pc=chipsOn('pChips'); t.pressing = pc.length ? pc[0] : ''; }
+    if(t.tag==='Question for coach' && !t.question){ toast('Write your question · اكتب سؤالك'); return; }
+    mine.push(t); persist(t); render();
+    $('sheet').classList.remove('open'); pending=null;
+    send(t);
+    if(player && ready){ try{ player.playVideo(); }catch(e){} }
+  };
+  function send(t){
+    t.status='sending'; render();
+    call('saveTag', {player:t.player, token:auth?auth.token:'', match:t.match, tag:t.tag, seconds:t.seconds, saw:t.saw, decided:t.decided, better:t.better, question:t.question, mistake:t.mistake||'', movement:t.movement||'', pressing:t.pressing||''},
+      function(){ t.status='saved'; persist(t); render(); toast('Saved ✓ · تم الحفظ'); },
+      function(e){ t.status='failed'; persist(t); render();
+        if(e && String(e.message||e).indexOf('AUTH')>=0){ toast('Please log in again · سجّل الدخول مرة أخرى'); $('logout').click(); }
+        else toast('Not saved — tap Retry · لم يتم الحفظ'); });
+  }
+
+  /* ---- list ---- */
+  function render(){
+    var L=$('list'); L.innerHTML='';
+    if(!mine.length){ L.innerHTML='<div class="empty">No tags yet · <span class="ar">لا توجد لحظات بعد</span></div>'; return; }
+    mine.slice().sort(function(a,b){return a.seconds-b.seconds;}).forEach(function(t){
+      var r=document.createElement('div'); r.className='row';
+      var tm=document.createElement('span'); tm.className='time'; tm.textContent=fmt(t.seconds);
+      tm.style.cursor='pointer'; tm.onclick=function(){ if(player&&ready) player.seekTo(t.seconds,true); };
+      var tx=document.createElement('span'); tx.textContent=t.tag;
+      var st=document.createElement('span'); st.className='st';
+      if(t.status==='saved'){ st.className+=' ok'; st.textContent='✓ sent'; }
+      else if(t.status==='failed'){ st.className+=' err'; var rb=document.createElement('button'); rb.textContent='Retry';
+        rb.style.padding='4px 10px'; rb.onclick=function(){ send(t); }; st.appendChild(rb); }
+      else { st.textContent='sending…'; }
+      r.appendChild(tm); r.appendChild(tx); r.appendChild(st); L.appendChild(r);
+    });
+  }
+})();
+</script>
+</body>
+</html>

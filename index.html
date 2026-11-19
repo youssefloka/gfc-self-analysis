@@ -86,6 +86,11 @@
   .ph img,.fb img{max-width:160px;max-height:120px;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;display:block}
   .fb .phb{padding:3px 10px;font-size:12px;border-radius:999px;margin-left:6px}
   .fb img{margin-top:6px}
+  .phs{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:6px}
+  .phs img{max-width:110px;max-height:84px;margin-top:0;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;display:block;object-fit:cover}
+  .phw{position:relative}
+  .phw .x{position:absolute;top:-6px;right:-6px;width:24px;height:24px;padding:0;border-radius:50%;font-size:14px;line-height:22px;background:#e5484d;color:#fff;border:none}
+  .phw .ld{width:90px;height:68px;border-radius:8px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
   .lb{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;padding:12px}
   .lb img{max-width:100%;max-height:100%;border-radius:8px}
   .empty{color:var(--muted);font-size:14px}
@@ -682,11 +687,19 @@
     var im=document.createElement('img'); im.src=src; im.alt='Coach photo';
     im.addEventListener('click', function(e){ e.stopPropagation(); showBig(src); }); return im;
   }
-  function loadPhoto(t, ok, fail){
-    if(t.photoData){ ok(t.photoData); return; }
-    call('getPhoto', {player:auth.player, token:auth.token, row:t.row}, function(r){
-      if(r && r.ok){ t.photoData=r.photo; ok(r.photo); } else fail();
+  function loadPhoto(t, id, ok, fail){
+    t.photoCache = t.photoCache || {};
+    if(t.photoCache[id]){ ok(t.photoCache[id]); return; }
+    call('getPhoto', {player:auth.player, token:auth.token, row:t.row, id:id}, function(r){
+      if(r && r.ok){ t.photoCache[id]=r.photo; ok(r.photo); } else fail();
     }, fail);
+  }
+  function loadAll(t, ids, done){
+    var i=0, bad=0;
+    (function next(){
+      if(i>=ids.length){ done(bad); return; }
+      loadPhoto(t, ids[i++], next, function(){ bad++; next(); });
+    })();
   }
   function adminCard(t){
     var b=document.createElement('div'); b.className='acard';
@@ -725,49 +738,60 @@
     var nt=document.createElement('textarea'); nt.placeholder='Coach note for the player (optional) · ملاحظة المدرب'; nt.value=(t.note && t.note!=='undefined')?t.note:'';
     nt.addEventListener('input', function(){ sv.disabled=false; st.textContent='not saved yet'; });
     rv.appendChild(nt);
-    // photo: undefined = unchanged, '' = remove, data URL = new photo
-    var newPhoto, ph=document.createElement('div'); ph.className='ph';
-    var fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.style.display='none';
+    // photos: list of {id} (already saved) or {data} (new, not saved yet); up to 4
+    var MAXP=4, plist=(t.photos||[]).map(function(id){ return {id:id}; }), phChanged=false;
+    var ph=document.createElement('div'); ph.className='ph';
+    var fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.multiple=true; fi.style.display='none';
     var addB=document.createElement('button'); addB.type='button';
-    var delB=document.createElement('button'); delB.type='button'; delB.textContent='Remove photo';
-    var phView=document.createElement('span');
+    var viewB=document.createElement('button'); viewB.type='button';
+    var phs=document.createElement('div'); phs.className='phs';
+    function srcOf(x){ return x.data || (x.id && t.photoCache && t.photoCache[x.id]) || ''; }
     function phDraw(){
-      var has = newPhoto!==undefined ? !!newPhoto : !!t.photo;
-      addB.textContent = has ? '\ud83d\udcf7 Change photo' : '\ud83d\udcf7 Add photo';
-      delB.style.display = has ? '' : 'none';
-      phView.innerHTML='';
-      if(newPhoto){ phView.appendChild(thumb(newPhoto)); }
-      else if(newPhoto===undefined && t.photo && t.photoData){ phView.appendChild(thumb(t.photoData)); }
-      else if(newPhoto===undefined && t.photo){
-        var vb2=document.createElement('button'); vb2.type='button'; vb2.textContent='View photo';
-        vb2.addEventListener('click', function(){ vb2.disabled=true; vb2.textContent='Loading…';
-          loadPhoto(t, function(src){ phView.innerHTML=''; phView.appendChild(thumb(src)); }, function(){ vb2.disabled=false; vb2.textContent='View photo (retry)'; }); });
-        phView.appendChild(vb2);
-      }
+      addB.textContent = plist.length ? '\ud83d\udcf7 Add another photo ('+plist.length+'/'+MAXP+')' : '\ud83d\udcf7 Add photo';
+      addB.style.display = plist.length>=MAXP ? 'none' : '';
+      var missing = plist.filter(function(x){ return !srcOf(x); }).length;
+      viewB.style.display = missing ? '' : 'none'; viewB.disabled=false; viewB.textContent='View photos ('+plist.length+')';
+      phs.innerHTML='';
+      plist.forEach(function(x, i){
+        var w=document.createElement('div'); w.className='phw';
+        var src=srcOf(x);
+        if(src) w.appendChild(thumb(src)); else { var ld=document.createElement('div'); ld.className='ld'; ld.textContent='Photo '+(i+1); w.appendChild(ld); }
+        var xb=document.createElement('button'); xb.type='button'; xb.className='x'; xb.textContent='\u00d7'; xb.title='Remove this photo';
+        xb.addEventListener('click', function(e){ e.stopPropagation(); plist.splice(i,1); phChanged=true; phDraw(); sv.disabled=false; st.textContent='not saved yet'; });
+        w.appendChild(xb); phs.appendChild(w);
+      });
     }
+    viewB.addEventListener('click', function(){
+      viewB.disabled=true; viewB.textContent='Loading…';
+      loadAll(t, plist.filter(function(x){ return x.id && !srcOf(x); }).map(function(x){ return x.id; }), function(bad){ phDraw(); if(bad){ viewB.textContent='View photos (retry)'; } });
+    });
     addB.addEventListener('click', function(){ fi.click(); });
     fi.addEventListener('change', function(){
-      var f=fi.files && fi.files[0]; fi.value=''; if(!f) return;
-      st.textContent='Preparing photo…';
-      shrinkImage(f, function(d){
-        if(!d){ st.textContent='Could not read that photo — try another'; return; }
-        newPhoto=d; phDraw(); sv.disabled=false; st.textContent='not saved yet';
-      });
+      var files=Array.prototype.slice.call(fi.files||[]); fi.value='';
+      files=files.slice(0, MAXP-plist.length); if(!files.length) return;
+      st.textContent='Preparing photo…'; var k=0, failed=0;
+      (function next(){
+        if(k>=files.length){ phDraw(); sv.disabled=false; st.textContent = failed ? 'Some photos could not be read — try another' : 'not saved yet'; return; }
+        shrinkImage(files[k++], function(d){ if(d){ plist.push({data:d}); phChanged=true; } else failed++; next(); });
+      })();
     });
-    delB.addEventListener('click', function(){ newPhoto=''; phDraw(); sv.disabled=false; st.textContent='not saved yet'; });
-    ph.appendChild(fi); ph.appendChild(addB); ph.appendChild(delB); ph.appendChild(phView); rv.appendChild(ph);
+    ph.appendChild(fi); ph.appendChild(addB); ph.appendChild(viewB); rv.appendChild(ph); rv.appendChild(phs);
     phDraw();
     var rs=document.createElement('div'); rs.className='rs';
     var st=document.createElement('span'); st.textContent = t.review ? ('Reviewed: '+t.review+(t.by?' · '+t.by:'')) : 'Not reviewed';
     var sv=document.createElement('button'); sv.type='button'; sv.textContent='Save review'; sv.disabled=true;
     sv.addEventListener('click', function(){
-      if(!pick && (nt.value.trim() || newPhoto)){ toast('Choose Correct, Needs adjustment or Wrong'); return; }
-      sv.disabled=true; st.textContent = newPhoto ? 'Saving (uploading photo)…' : 'Saving…';
+      var newCount=plist.filter(function(x){ return x.data; }).length;
+      if(!pick && (nt.value.trim() || newCount)){ toast('Choose Correct, Needs adjustment or Wrong'); return; }
+      sv.disabled=true; st.textContent = newCount ? ('Saving (uploading '+newCount+' photo'+(newCount>1?'s':'')+')…') : 'Saving…';
       var arg={player:auth.player, token:auth.token, target:$('adminSel').value, row:t.row, seconds:t.seconds, verdict:pick, note:nt.value.trim()};
-      if(newPhoto!==undefined) arg.photo=newPhoto;
+      if(phChanged) arg.photos=plist.map(function(x){ return x.id || x.data; });
       call('reviewTag', arg, function(r){
-        if(r && r.ok){ t.review=r.verdict; t.note=r.note; t.by=r.by; t.photo=!!r.photo; t.photoData = r.photo ? (newPhoto || t.photoData) : null; newPhoto=undefined; phDraw(); mark(); st.textContent = t.review ? ('Saved \u2713 · '+t.review+(t.photo?' · with photo':'')) : 'Review cleared'; refreshSummary(); }
-        else if(r && (r.reason==='photosize' || r.reason==='photo')){ st.textContent='Photo too large — try another'; sv.disabled=false; }
+        if(r && r.ok){ t.review=r.verdict; t.note=r.note; t.by=r.by; t.photoCache=t.photoCache||{}; var ids=r.photos||[];
+          if(phChanged) ids.forEach(function(id, i){ if(plist[i] && plist[i].data) t.photoCache[id]=plist[i].data; });
+          t.photos=ids; plist=ids.map(function(id){ return {id:id}; }); phChanged=false; phDraw(); mark();
+          st.textContent = t.review ? ('Saved \u2713 · '+t.review+(ids.length?' · '+ids.length+' photo'+(ids.length>1?'s':''):'')) : 'Review cleared'; refreshSummary(); }
+        else if(r && (r.reason==='photosize' || r.reason==='photo' || r.reason==='photocount')){ st.textContent='Photo problem (too large or more than 4) — try again'; sv.disabled=false; }
         else if(r && r.reason==='moved'){ st.textContent='This tag moved in the sheet — reload the player'; sv.disabled=false; }
         else { st.textContent='Not saved — try again'; sv.disabled=false; }
       }, function(){ st.textContent='Not saved — check connection'; sv.disabled=false; });
@@ -808,10 +832,16 @@
         vd.textContent={'Correct':'\u2713 Correct · صحيح','Needs adjustment':'~ Needs adjustment · يحتاج تعديل','Wrong':'\u2717 Wrong · خطأ'}[t.review];
         fb.appendChild(vd);
         if(t.note && t.note!=='undefined'){ var nt=document.createElement('span'); nt.textContent='Coach: '+t.note; fb.appendChild(nt); }
-        if(t.photo && t.row){ (function(t, fb){
-          var pb=document.createElement('button'); pb.type='button'; pb.className='phb'; pb.textContent='\ud83d\udcf7 Photo · صورة';
+        if(t.photos && t.photos.length && t.row){ (function(t, fb){
+          var n=t.photos.length, pb=document.createElement('button'); pb.type='button'; pb.className='phb';
+          pb.textContent = '\ud83d\udcf7 '+(n>1 ? 'Photos ('+n+') · صور' : 'Photo · صورة');
           pb.addEventListener('click', function(){ pb.disabled=true; pb.textContent='Loading…';
-            loadPhoto(t, function(src){ pb.remove(); fb.appendChild(thumb(src)); }, function(){ pb.disabled=false; pb.textContent='\ud83d\udcf7 Photo · retry'; }); });
+            loadAll(t, t.photos, function(bad){
+              var box=document.createElement('div'); box.className='phs';
+              t.photos.forEach(function(id){ if(t.photoCache && t.photoCache[id]) box.appendChild(thumb(t.photoCache[id])); });
+              if(box.childNodes.length) fb.appendChild(box);
+              if(bad){ pb.disabled=false; pb.textContent='\ud83d\udcf7 retry'; } else pb.remove();
+            }); });
           fb.appendChild(pb); })(t, fb); }
         r.appendChild(fb);
       }

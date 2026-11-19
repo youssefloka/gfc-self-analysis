@@ -81,6 +81,14 @@
   .fb .vd{font-weight:700;padding:1px 8px;border-radius:999px;font-size:12px;margin-right:6px}
   .fb .vd.Correct{background:#34c79a;color:#06281d} .fb .vd.Needs{background:#e8a23b;color:#2b1a00} .fb .vd.Wrong{background:#e5484d;color:#fff}
   .fbsum{font-size:13px;color:var(--muted);margin:0 0 8px}
+  .rdsum{font-size:14px;font-weight:700;margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#2a1f05;color:#e8a23b}
+  .rdsum.all{background:#06281d;color:#34c79a}
+  .list .row.unread{background:rgba(232,162,59,.08)}
+  .fb .new{background:#e8a23b;color:#2b1a00;font-weight:800;font-size:11px;padding:1px 7px;border-radius:999px;margin-right:6px}
+  .rdl{flex-basis:100%;padding-left:68px;margin-top:6px;font-size:12px}
+  .rdl button{padding:7px 14px;font-size:13px;border-radius:999px;background:#34c79a;color:#06281d;border:none;font-weight:700}
+  .rdl .ok{color:#34c79a}
+  .rdstat{font-size:12px;margin-top:6px} .rdstat.no{color:var(--muted)} .rdstat.yes{color:#34c79a}
   .ph{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
   .ph button{padding:6px 10px;font-size:13px;border-radius:999px}
   .ph img,.fb img{max-width:160px;max-height:120px;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;display:block}
@@ -187,6 +195,8 @@
         <option value="Wrong">Wrong only</option>
         <option value="Needs adjustment">Needs adjustment only</option>
         <option value="Correct">Correct only</option>
+        <option value="unread">Reviewed, NOT read by player yet</option>
+        <option value="read">Reviewed and read by player</option>
       </select>
     </div>
   </div>
@@ -619,7 +629,7 @@
       var sel=$('adminSel'), keep=sel.value;
       sel.innerHTML='<option value="">— my own tagging —</option>';
       r.players.slice().sort(function(a,b){ return b.count-a.count || a.name.localeCompare(b.name); }).forEach(function(p){
-        var o=document.createElement('option'); o.value=p.name; o.textContent=p.name+' ('+p.count+(p.count?' · '+(p.reviewed||0)+' reviewed':'')+')'; sel.appendChild(o); });
+        var o=document.createElement('option'); o.value=p.name; o.textContent=p.name+' ('+p.count+(p.count?' · '+(p.reviewed||0)+' reviewed':'')+(p.reviewed?' · '+(p.read||0)+' read':'')+')'; sel.appendChild(o); });
       sel.value=keep; if(keep) loadAdminTags();
     });
   }
@@ -646,6 +656,8 @@
       if(f && t.tag!==f) return false;
       if(rf==='todo') return !t.review;
       if(rf==='fix') return t.review==='Wrong' || t.review==='Needs adjustment';
+      if(rf==='unread') return !!t.review && !t.readAt;
+      if(rf==='read') return !!t.review && !!t.readAt;
       if(rf) return t.review===rf;
       return true; });
     var c={Correct:0,'Needs adjustment':0,Wrong:0}; adminTags.forEach(function(t){ if(c.hasOwnProperty(t.review)) c[t.review]++; });
@@ -654,6 +666,7 @@
     sum.textContent=$('adminSel').value+' · showing '+list.length+' of '+adminTags.length+' · reviewed '+done+'/'+adminTags.length+
       ' (✓ '+c.Correct+' · ~ '+c['Needs adjustment']+' · ✗ '+c.Wrong+') · tap the time to watch (starts 5s before)';
     L.appendChild(sum);
+    var sum2=document.createElement('p'); sum2.className='asum asum2'; L.appendChild(sum2); readSummary();
     if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='No tags here.'; L.appendChild(e); return; }
     list.forEach(function(t){ L.appendChild(adminCard(t)); });
   }
@@ -787,7 +800,7 @@
       var arg={player:auth.player, token:auth.token, target:$('adminSel').value, row:t.row, seconds:t.seconds, verdict:pick, note:nt.value.trim()};
       if(phChanged) arg.photos=plist.map(function(x){ return x.id || x.data; });
       call('reviewTag', arg, function(r){
-        if(r && r.ok){ t.review=r.verdict; t.note=r.note; t.by=r.by; t.photoCache=t.photoCache||{}; var ids=r.photos||[];
+        if(r && r.ok){ t.review=r.verdict; t.note=r.note; t.by=r.by; t.readAt=r.readAt||''; if(t._rdDraw) t._rdDraw(); t.photoCache=t.photoCache||{}; var ids=r.photos||[];
           if(phChanged) ids.forEach(function(id, i){ if(plist[i] && plist[i].data) t.photoCache[id]=plist[i].data; });
           t.photos=ids; plist=ids.map(function(id){ return {id:id}; }); phChanged=false; phDraw(); mark();
           st.textContent = t.review ? ('Saved \u2713 · '+t.review+(ids.length?' · '+ids.length+' photo'+(ids.length>1?'s':''):'')) : 'Review cleared'; refreshSummary(); }
@@ -797,10 +810,23 @@
       }, function(){ st.textContent='Not saved — check connection'; sv.disabled=false; });
     });
     rs.appendChild(st); rs.appendChild(sv); rv.appendChild(rs);
+    var rds=document.createElement('div'); rv.appendChild(rds);
+    function rdDraw(){
+      if(!t.review){ rds.className='rdstat'; rds.textContent=''; return; }
+      rds.className='rdstat '+(t.readAt?'yes':'no');
+      rds.textContent = t.readAt ? ('\ud83d\udc41 Player read it · '+t.readAt) : 'Not read by the player yet';
+    }
+    rdDraw(); t._rdDraw=rdDraw;
     b.appendChild(rv);
     return b;
   }
+  function readSummary(){
+    var p=document.querySelector('#adminList .asum2'); if(!p) return;
+    var rv=adminTags.filter(function(t){ return t.review; }), rd=rv.filter(function(t){ return t.readAt; }).length;
+    p.textContent = rv.length ? ('\ud83d\udc41 Player has read '+rd+' of '+rv.length+' reviews'+(rd===rv.length?' \u2713':'')) : '';
+  }
   function refreshSummary(){
+    readSummary();
     var c={Correct:0,'Needs adjustment':0,Wrong:0}; adminTags.forEach(function(t){ if(c.hasOwnProperty(t.review)) c[t.review]++; });
     var done=c.Correct+c['Needs adjustment']+c.Wrong, p=document.querySelector('#adminList .asum');
     if(p) p.textContent=p.textContent.replace(/reviewed \d+\/\d+ \(.*?\)/, 'reviewed '+done+'/'+adminTags.length+' (\u2713 '+c.Correct+' · ~ '+c['Needs adjustment']+' · \u2717 '+c.Wrong+')');
@@ -814,9 +840,14 @@
     mine.forEach(function(t){ if(c.hasOwnProperty(t.review)){ c[t.review]++; n++; } });
     if(n){ var p=document.createElement('p'); p.className='fbsum';
       p.textContent='Coach reviewed '+n+' of your '+mine.length+' tags: \u2713 '+c.Correct+' correct · ~ '+c['Needs adjustment']+' needs adjustment · \u2717 '+c.Wrong+' wrong · راجع المدرب '+n+' من لحظاتك';
-      L.appendChild(p); }
+      L.appendChild(p);
+      var rd=mine.filter(function(t){ return c.hasOwnProperty(t.review) && t.readAt; }).length;
+      var q=document.createElement('p'); q.className='rdsum'+(rd===n?' all':'');
+      q.textContent = rd===n ? ('\u2713 You have read all '+n+' coach reviews · قرأت كل ملاحظات المدرب')
+        : ('\ud83d\udcd6 Read '+rd+' of '+n+' coach reviews — '+(n-rd)+' left. Read each one, then press "I read it" · قرأت '+rd+' من '+n);
+      L.appendChild(q); }
     mine.slice().sort(function(a,b){return a.seconds-b.seconds;}).forEach(function(t){
-      var r=document.createElement('div'); r.className='row'+(c.hasOwnProperty(t.review)?' v-'+t.review.split(' ')[0]:'');
+      var r=document.createElement('div'); r.className='row'+(c.hasOwnProperty(t.review)?' v-'+t.review.split(' ')[0]+(t.readAt?'':' unread'):'');
       var tm=document.createElement('span'); tm.className='time'; tm.textContent=fmt(t.seconds);
       tm.style.cursor='pointer'; tm.onclick=function(){ if(player&&ready) player.seekTo(t.seconds,true); };
       var tx=document.createElement('span'); tx.textContent=tagLabel(t.tag);
@@ -828,6 +859,7 @@
       r.appendChild(tm); r.appendChild(tx); r.appendChild(st);
       if(c.hasOwnProperty(t.review)){
         var fb=document.createElement('div'); fb.className='fb';
+        if(!t.readAt){ var nw=document.createElement('span'); nw.className='new'; nw.textContent='NEW · جديد'; fb.appendChild(nw); }
         var vd=document.createElement('span'); vd.className='vd '+t.review.split(' ')[0];
         vd.textContent={'Correct':'\u2713 Correct · صحيح','Needs adjustment':'~ Needs adjustment · يحتاج تعديل','Wrong':'\u2717 Wrong · خطأ'}[t.review];
         fb.appendChild(vd);
@@ -844,6 +876,17 @@
             }); });
           fb.appendChild(pb); })(t, fb); }
         r.appendChild(fb);
+        var rl=document.createElement('div'); rl.className='rdl';
+        if(t.readAt){ var ok=document.createElement('span'); ok.className='ok'; ok.textContent='\u2713 Read · تمت القراءة'; rl.appendChild(ok); }
+        else if(t.row){ (function(t){
+          var rb2=document.createElement('button'); rb2.type='button'; rb2.textContent='\u2713 I read it · قرأت';
+          rb2.addEventListener('click', function(){ rb2.disabled=true; rb2.textContent='Saving…';
+            call('markRead', {player:auth.player, token:auth.token, row:t.row, seconds:t.seconds}, function(x){
+              if(x && x.ok){ t.readAt=x.readAt; render(); }
+              else { rb2.disabled=false; rb2.textContent='Try again · حاول مرة أخرى'; }
+            }, function(){ rb2.disabled=false; rb2.textContent='Try again · حاول مرة أخرى'; }); });
+          rl.appendChild(rb2); })(t); }
+        r.appendChild(rl);
       }
       L.appendChild(r);
     });
